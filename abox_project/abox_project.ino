@@ -108,28 +108,25 @@ void readSensors(char *body){
 char cmd_buf[256];
 char response[128];
 char response_body[120];
-  
+char tmp;
+int cmd_index = 0;
+char *cmd_method;
+char *cmd_spec;
+int line;
+int succeeded;  
+
 void loop()
 {
-  char tmp;
-  int i;
-
-  int cmd_index = 0;
-  char *cmd_method;
-  char *cmd_spec;
-  int line;
   
-  int succeeded;
-
   // if an incoming client connects, there will be bytes available to read:
   EthernetClient client = server.available();
   EthernetClient client2 = server2.available();
-  while (client) { 
+  if (client) { 
     tmp = client.read();
     client = server.available();
     if(tmp != '\n'){
       cmd_buf[cmd_index++] = tmp;
-      continue;
+      return;
     }else{
       cmd_buf[cmd_index] = '\0';
       cmd_index = 0;      
@@ -138,7 +135,7 @@ void loop()
     cmd_method = trimwhitespace(cmd_buf);
     if(cmd_method[2] != '_'){
       Serial.println("invalid command");
-      continue;
+      return;
     }
     
     cmd_method[2] = '\0';
@@ -171,6 +168,7 @@ void loop()
     }
   }   
 }
+
 void serialEvent1()
 {
   byte i = 0;
@@ -242,15 +240,9 @@ void serialEvent1()
   }
 }
 
-void serialEvent2()
-{
-    byte buf[2048];
-    int len;
-    //EthernetClient client2;
+void serialEvent2() {
       if(Serial2.available() > 0){
-        len = Serial2.readBytesUntil('\n',buf,2047);
-        buf[len++] = '\n';
-        server2.write(buf,len);
+        server2.write(Serial2.read());
       }
 }
 
