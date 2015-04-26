@@ -6,6 +6,7 @@
   pin 53 is connected to CS
   other 4 pin is not necessary
 */
+
 #include <SPI.h>
 #include <UIPEthernet.h>
 #include <Wire.h>
@@ -16,6 +17,7 @@
 
 #define I2C_ADDR 0x27 //i2c scanner address
 #define BACKLIGHT_PIN 3 //set up blacklight pin
+
 /*
  pin 12 is connected to the DataIn 
  pin 11 is connected to the CLK 
@@ -33,8 +35,8 @@ byte gateway[] = { 192, 168, 1, 1 };
 // the subnet:
 byte subnet[] = { 255, 255, 255, 0 };
 
-EthernetServer server = EthernetServer(6000);
-EthernetServer server2 = EthernetServer(6001);
+UIPServer server = UIPServer(6000);
+
 LiquidCrystal_I2C lcd(I2C_ADDR,2,1,0,4,5,6,7);
 
 void setup() {
@@ -47,7 +49,6 @@ void setup() {
   Wire.begin();
   // start listening for clients
   server.begin();
-  server2.begin();
   Serial.println("Server Ready");
   lcd.begin (20,4);
   // Switch on the backlight
@@ -91,18 +92,20 @@ void displayMatrixLed(char *spec){
   prepareSpec(spec, 16, '0');
  
   for(i = 0; i < 8; i++){
-    v = (byte)((hexstr2i(spec[i * 2]) * 16) + hexstr2i(spec[i * 2 + 1]));
+    v = hexstr2b(spec + (i*2));
     lc.setRow(0, i, v);
   }
 }
 
 void readSensors(char *body){
+  float rh = SHT2x.GetHumidity();
+  float tc = SHT2x.GetTemperature();
   Serial.print("Humidity(%RH): ");
-  Serial.println(SHT2x.GetHumidity());
+  Serial.println(rh);
   Serial.print("Temperature(C): ");
-  Serial.println(SHT2x.GetTemperature());
+  Serial.println(tc);
   
-  sprintf(body, "RH=%f&TC=%f", SHT2x.GetHumidity(), SHT2x.GetTemperature());
+  sprintf(body, "RH=%.2f,TC=%.2f", rh, tc);
 }
 
 char cmd_buf[256];
@@ -114,16 +117,13 @@ char *cmd_method;
 char *cmd_spec;
 int line;
 int succeeded;  
+int serial2_forward = 1;
 
-void loop()
-{
-  
+void loop() {
   // if an incoming client connects, there will be bytes available to read:
-  EthernetClient client = server.available();
-  EthernetClient client2 = server2.available();
-  if (client) { 
+  UIPClient client = server.available();
+  if(client) {
     tmp = client.read();
-    client = server.available();
     if(tmp != '\n'){
       cmd_buf[cmd_index++] = tmp;
       return;
@@ -155,98 +155,94 @@ void loop()
          break;
          
        case 'S':  //sensor
-         readSensors(response_body);
+         //readSensors(response_body);
+         succeeded = 1;
+         break;
+         
+       case 'R':  //rs232
+         serial2_forward = (cmd_method[1] == '0') ? 0 : 1;
          succeeded = 1;
          break;
       
     }
     if(succeeded){
       sprintf(response, "OK_%s_%s\r\n", cmd_method, response_body);
-      if(!client){
-        server.println(response);
-      }
+      server.print(response);    
     }
   }   
 }
 
-void serialEvent1()
-{
-  byte i = 0;
+char code[12];
+int ci = 0;
+void serialEvent1(){
+  
+  byte bytesRead = 0;
   byte val = 0;
-  byte code[6];
-  byte checksum = 0;
-  byte bytesread = 0;
-  byte tempbyte = 0;
-  //EthernetClient client = server.available();
+ 
   char rf[10] = "RF_";
-  if(Serial1.available() > 0) {
-    if((val = Serial1.read()) == 2) {                  // check for header 
-      bytesread = 0; 
-      while (bytesread < 12) {                        // read 10 digit code + 2 digit checksum
-        if( Serial1.available() > 0) { 
-          val = Serial1.read();
-          if((val == 0x0D)||(val == 0x0A)||(val == 0x03)||(val == 0x02)) { // if header or stop bytes before the 10 digit reading 
-            break;                                    // stop reading
-          }
-
-          // Do Ascii/Hex conversion:
-          if ((val >= '0') && (val <= '9')) {
-            val = val - '0';
-          } else if ((val >= 'A') && (val <= 'F')) {
-            val = 10 + val - 'A';
-          }
-
-          // Every two hex-digits, add byte to code:
-          if (bytesread & 1 == 1) {
-            // make some space for this hex-digit by
-            // shifting the previous hex-digit with 4 bits to the left:
-            code[bytesread >> 1] = (val | (tempbyte << 4));
-
-            if (bytesread >> 1 != 5) {                // If we're at the checksum byte,
-              checksum ^= code[bytesread >> 1];       // Calculate the checksum... (XOR)
-            };
-          } else {
-            tempbyte = val;                           // Store the first hex digit first...
-          };
-
-          bytesread++;                                // ready to read next digit
-        } 
-      } 
+  while(Serial1.available() > 0 && bytesRead < 16) { //make sure while not run indefinitely
+    val = Serial1.read();
+    bytesRead++;
     
-      // Output to Serial:
-      if (bytesread == 12) {                          // if 12 digit read is complete
-        Serial.print("5-byte code: ");
-        server.print(rf);
-        for (i=0; i<5; i++) {
-          if (code[i] < 16) {
-             Serial.print("0");
-             server.print("0");
-          }
-          Serial.print(code[i],HEX);
-          server.print(code[i],HEX);
-          Serial.print(" ");
-        }
-        server.println();
-        Serial.println();
-
-        Serial.print("Checksum: ");
-        Serial.print(code[5], HEX);
-        Serial.println(code[5] == checksum ? " -- passed." : " -- error.");
-        Serial.println();
-      }
-
-      bytesread = 0;
+    if(val == 0x02){
+      ci = 0;
+    }else if(val == 0x0D || val == 0x0A){ //ignore \r\n
+      continue;
+    }else if(val == 0x03){
+      process_code();
+      break;
+    }else if(ci < 12) {
+      code[ci++] = val;
     }
   }
 }
 
-void serialEvent2() {
-      if(Serial2.available() > 0){
-        server2.write(Serial2.read());
-      }
+void process_code() {
+  byte checksum = hexstr2b(code + 10);
+  byte test = hexstr2b(code);
+  int i;
+  for(i = 1; i < 5; i++){
+    test ^= hexstr2b(code + (i * 2));
+  }
+  if(test == checksum){ //valid tag code
+    code[10] = '\0';
+    Serial.println(code);
+    server.print("RF_");
+    server.print(code);
+    server.print("\r\n");
+  }
 }
 
-int hexstr2i(char hex){
+char rs_buf[128];
+int rsi = 0;
+void serialEvent2() { 
+  int ok = 0;
+   while(Serial2.available() > 0 && rsi < 127 && !ok){
+     byte v = Serial2.read();
+     rs_buf[rsi++] = v;
+     if(v == 0x0D){
+       ok = 1;
+     }
+   }
+
+   if(rsi > 0 && ok){
+     rs_buf[rsi] = '\0';
+     if(serial2_forward){
+       server.print("SR_");
+       server.print(trimwhitespace(rs_buf));
+       server.print("\r\n");
+     }
+     rsi = 0;
+   }else if(rsi > 127){
+     rsi = 0;  //discard message longer than 127 char
+   }  
+}
+
+byte hexstr2b(char *s){
+  return (byte)((hexchar2b(s[0]) * 16) + hexchar2b(s[1]));
+}
+
+byte hexchar2b(char hex){
   if(hex >= '0' && hex <= '9')
     return hex -'0';
   if(hex >= 'A' && hex <= 'F'){     
@@ -254,8 +250,7 @@ int hexstr2i(char hex){
   }
 }
 
-char *trimwhitespace(char *str)
-{
+char *trimwhitespace(char *str) {
   char *end;
 
   // Trim leading space
