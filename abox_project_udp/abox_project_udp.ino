@@ -26,13 +26,14 @@ EthernetServer server(6000);
 EthernetClient activeClient;
 EthernetUDP udp;
 
-IPAddress serial2ForwardAddress;
-int serial2ForwardPort = -1;
+IPAddress serialForwardAddress;
+int serialForwardPort = -1;
 
 DHT dht(8, DHT21);
 LiquidCrystal_I2C lcd(I2C_ADDR,2,1,0,4,5,6,7);
 AlarmId displayBoxAlarmId;
 AlarmId updateSensorsAlarmId;
+void(* resetFunc) (void) = 0;//declare reset function at address 0
 
 void setup() {
   Serial.begin(9600); 
@@ -45,7 +46,7 @@ void setup() {
   // start listening for clients
   server.begin();
   
-  Serial.println("Server Ready");
+  //Serial.println("Server Ready");
   lcd.begin (20,4);
   // Switch on the backlight
   lcd.setBacklightPin(BACKLIGHT_PIN,POSITIVE);
@@ -111,7 +112,7 @@ int processCommand(char tmp){
     char *cmd_method = trimwhitespace(cmd_buf);
     char *cmd_spec;
     if(cmd_method[2] != '_'){
-      Serial.println("invalid command");
+      //Serial.println("invalid command");
       return 1;
     }
     cmd_method[2] = '\0';
@@ -120,7 +121,7 @@ int processCommand(char tmp){
     char *response = (char*)malloc(128);
     char *response_body = response + RESPONSE_LEN + CMD_PREFIX_LEN;
     strcpy(response, "OK_");
-    strcpy(response + RESPONSE_LEN, cmd_method);
+    sprintf(response + RESPONSE_LEN, "%s_", cmd_method);
     
     switch(cmd_method[0]){
        case 'T':  //text lcd
@@ -144,13 +145,17 @@ int processCommand(char tmp){
          break;
          
        case 'R':  //rs232
-         setSerial2Forward(cmd_spec);
+         setSerialForward(cmd_spec);
          succeeded = 1;
          break;
          
        case 'P':  //ping
          succeeded = 1;
          break;
+       
+       case 'H': //hardware
+         if(cmd_method[1] == 'R')
+           resetFunc();
     }
     if(succeeded && activeClient.connected()){
       int end = strlen(response);
@@ -171,7 +176,7 @@ void prepareSpec(char *spec, int limit, char dv){
   spec[limit] = '\0';
 }
 
-void setSerial2Forward(char *spec){
+void setSerialForward(char *spec){
   int len = strlen(spec);
   int count = 0;
   int c_index = 0;
@@ -179,7 +184,7 @@ void setSerial2Forward(char *spec){
   while(count < 4 && c_index < len){
     if(spec[c_index] == '.' || spec[c_index] == ':'){
       spec[c_index] = '\0';
-      serial2ForwardAddress[count] = atoi(spec + last_dot_index + 1);
+      serialForwardAddress[count] = atoi(spec + last_dot_index + 1);
       last_dot_index = c_index;
       count++;
     }
@@ -187,9 +192,9 @@ void setSerial2Forward(char *spec){
   }
 
   if(c_index < len){
-    serial2ForwardPort = atoi(spec + c_index);
+    serialForwardPort = atoi(spec + c_index);
   }else{
-    serial2ForwardPort = -1;
+    serialForwardPort = -1;
   }
 }
 
@@ -221,7 +226,7 @@ void displayMatrixLed(char *spec){
   prepareSpec(spec, 16, '0');
  
   for(i = 0; i < 8; i++){
-    v = hexstr2b(spec + (i*2));
+    v = hexstr2b(spec[i*2], spec[i*2 + 1]);
     lc.setRow(0, i, v);
   }
 }
@@ -231,7 +236,18 @@ void readSensors(char *body){
     (int)current_tp, ((int)(current_tp *10)) % 10);
 }
 
-char code[16] = "RF_";  //12 + 4 (RF_XXXXXXXXXXXX\0)
+void forwardUdpData(byte b[], int len, int channel){
+  if(activeClient.connected() && serialForwardPort > 0){
+    if(udp.beginPacket(serialForwardAddress, serialForwardPort + channel)){
+      udp.write(b, len);
+      udp.endPacket();
+      udp.flush();
+      udp.stop();
+    }
+  }
+}
+
+byte code[12];  //12 + 4 (RF_XXXXXXXXXXXX\0)
 int ci = 0;  
 void serialEvent1(){
   byte bytesRead = 0;
@@ -249,29 +265,25 @@ void serialEvent1(){
       process_code();
       break;
     }else if(ci < 12) {  
-      code[CMD_PREFIX_LEN + ci++] = val;
+      code[ci++] = val;
     }
   }
 }
 
 void process_code() {
-  char *code_only = code + CMD_PREFIX_LEN;
-  byte checksum = hexstr2b(code_only + 10);
-  byte test = hexstr2b(code_only);
+  byte checksum = hexstr2b(code[10], code[11]);
+  byte test = hexstr2b(code[0], code[1]);
   int i;
   for(i = 1; i < 5; i++){
-    test ^= hexstr2b(code_only + (i * 2));
+    test ^= hexstr2b(code[i * 2], code[i*2 + 1]);
   }
   if(test == checksum){ //valid tag code
-    code_only[10] = '\r';
-    code_only[11] = '\n';
-    code_only[12] = '\0';
+    code[10] = '\r';
+    code[11] = '\n';
     
     rfid_stamp = millis();
-    if(activeClient.connected()){
-      activeClient.print(code);
-      activeClient.flush();
-    }
+
+    forwardUdpData(code, 12, 0);
   }
 }
 
@@ -289,14 +301,8 @@ void serialEvent2() {
 
    if(rsi > 0 && ok){
      serial2_stamp = millis();
-     if(activeClient.connected() && serial2ForwardPort > 0){
-       if(udp.beginPacket(serial2ForwardAddress, serial2ForwardPort)){
-          udp.write(rs_buf, rsi);
-          udp.endPacket();
-          udp.flush();
-          udp.stop();
-       }
-     }
+     
+     forwardUdpData(rs_buf, rsi, 1);
      rsi = 0;
    }else if(rsi >= 128){
      rsi = 0;  //discard message longer than 128 bytes
@@ -330,15 +336,13 @@ void displayBoxInfo(){
     heartToggle = !heartToggle;
     
     //for testing
-    if(activeClient.connected()){
-      activeClient.print("RF_1234567890\r\n");
-      activeClient.flush();
-    }
+    //byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
+    //forwardUdpData(testTag, 12, 0);
 }
 
 //------utilities functions-------------
-byte hexstr2b(char *s){
-  return (byte)((hexchar2b(s[0]) * 16) + hexchar2b(s[1]));
+byte hexstr2b(char a, char b){
+  return (byte)((hexchar2b(a) * 16) + hexchar2b(b));
 }
 
 byte hexchar2b(char hex){
