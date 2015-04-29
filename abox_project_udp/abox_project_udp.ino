@@ -11,6 +11,8 @@
 #define I2C_ADDR 0x27 //i2c scanner address
 #define BACKLIGHT_PIN 3 //set up blacklight pin
 
+#define CMD_PREFIX_LEN 3
+#define RESPONSE_LEN 3
 /*
  pin 12 is connected to the DataIn 
  pin 11 is connected to the CLK 
@@ -69,10 +71,7 @@ void initAlarm(){
 }
 
 char cmd_buf[256];
-char response[128];
-char response_body[120];
 int cmd_index = 0; 
-byte serial2_forward = 0;
 unsigned long rfid_stamp = 0;
 unsigned long serial2_stamp = 0;
 float current_rh = 0;
@@ -109,18 +108,19 @@ int processCommand(char tmp){
       cmd_index = 0;      
     }
     
-    char *cmd_method;
+    char *cmd_method = trimwhitespace(cmd_buf);
     char *cmd_spec;
-    
-    cmd_method = trimwhitespace(cmd_buf);
     if(cmd_method[2] != '_'){
       Serial.println("invalid command");
       return 1;
     }
-    
     cmd_method[2] = '\0';
-    cmd_spec = cmd_method + 3;
-    response_body[0] = '\0';
+    cmd_spec = cmd_method + CMD_PREFIX_LEN;
+
+    char *response = (char*)malloc(128);
+    char *response_body = response + RESPONSE_LEN + CMD_PREFIX_LEN;
+    strcpy(response, "OK_");
+    strcpy(response + RESPONSE_LEN, cmd_method);
     
     switch(cmd_method[0]){
        case 'T':  //text lcd
@@ -153,9 +153,12 @@ int processCommand(char tmp){
          break;
     }
     if(succeeded && activeClient.connected()){
-      sprintf(response, "OK_%s_%s\r\n", cmd_method, response_body);
+      int end = strlen(response);
+      strcpy(response + end, "\r\n");
       activeClient.print(response);    
     } 
+
+    free(response);
     return 1;
 }
 
@@ -170,17 +173,21 @@ void prepareSpec(char *spec, int limit, char dv){
 
 void setSerial2Forward(char *spec){
   int len = strlen(spec);
-  Serial.println(spec);
-  if(len >= 20){
-    spec[3]  = '\0';
-    spec[7]  = '\0';
-    spec[11] = '\0';
-    spec[15] = '\0';
-    serial2ForwardAddress = IPAddress(atoi(spec), atoi(spec + 4), atoi(spec + 8), atoi(spec + 12));
-    serial2ForwardPort = atoi(spec + 16); 
-    Serial.println(serial2ForwardAddress);
-    Serial.println(serial2ForwardPort);
-    
+  int count = 0;
+  int c_index = 0;
+  int last_dot_index = -1;
+  while(count < 4 && c_index < len){
+    if(spec[c_index] == '.' || spec[c_index] == ':'){
+      spec[c_index] = '\0';
+      serial2ForwardAddress[count] = atoi(spec + last_dot_index + 1);
+      last_dot_index = c_index;
+      count++;
+    }
+    c_index++;
+  }
+
+  if(c_index < len){
+    serial2ForwardPort = atoi(spec + c_index);
   }else{
     serial2ForwardPort = -1;
   }
@@ -224,11 +231,9 @@ void readSensors(char *body){
     (int)current_tp, ((int)(current_tp *10)) % 10);
 }
 
-#define SKIP_RF 3
 char code[16] = "RF_";  //12 + 4 (RF_XXXXXXXXXXXX\0)
 int ci = 0;  
 void serialEvent1(){
-  
   byte bytesRead = 0;
   byte val = 0;
  
@@ -244,13 +249,13 @@ void serialEvent1(){
       process_code();
       break;
     }else if(ci < 12) {  
-      code[SKIP_RF + ci++] = val;
+      code[CMD_PREFIX_LEN + ci++] = val;
     }
   }
 }
 
 void process_code() {
-  char *code_only = code + SKIP_RF;
+  char *code_only = code + CMD_PREFIX_LEN;
   byte checksum = hexstr2b(code_only + 10);
   byte test = hexstr2b(code_only);
   int i;
