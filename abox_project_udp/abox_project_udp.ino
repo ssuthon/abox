@@ -20,10 +20,12 @@ LedControl lc = LedControl(12,11,10,1);
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 byte ip[] = { 192, 168, 1, 60 };    
 
-EthernetServer server1(6000);
-EthernetClient activeClient1;
-EthernetServer server2(6001);
-EthernetClient activeClient2;
+EthernetServer server(6000);
+EthernetClient activeClient;
+EthernetUDP udp;
+
+IPAddress serial2ForwardAddress;
+int serial2ForwardPort = -1;
 
 DHT dht(8, DHT21);
 LiquidCrystal_I2C lcd(I2C_ADDR,2,1,0,4,5,6,7);
@@ -39,8 +41,7 @@ void setup() {
   //sensor part
   Wire.begin();
   // start listening for clients
-  server1.begin();
-  server2.begin();
+  server.begin();
   
   Serial.println("Server Ready");
   lcd.begin (20,4);
@@ -62,7 +63,7 @@ void setup() {
 }
 
 void initAlarm(){
-  displayBoxAlarmId = Alarm.timerRepeat(2, displayBoxInfo);
+  displayBoxAlarmId = Alarm.timerRepeat(1, displayBoxInfo);
   Alarm.delay(191);
   updateSensorsAlarmId = Alarm.timerRepeat(17, updateSensors);
 }
@@ -71,44 +72,28 @@ char cmd_buf[256];
 char response[128];
 char response_body[120];
 int cmd_index = 0; 
-byte serial2_forward = 1;
+byte serial2_forward = 0;
 unsigned long rfid_stamp = 0;
 unsigned long serial2_stamp = 0;
 float current_rh = 0;
 float current_tp = 0;
 
 void loop() {
-  EthernetClient client1 = server1.available();
-  EthernetClient client2 = server2.available();
+  EthernetClient client1 = server.available();
   
-  if(client1 && activeClient1 != client1){
-    activeClient1.flush();
-    activeClient1.stop();
-    activeClient1 = client1;
-  }
-    
-  if(client2 && activeClient2 != client2){
-    activeClient2.flush();
-    activeClient2.stop();
-    activeClient2 = client2;
-    activeClient2.flush();
+  if(client1 && activeClient != client1){
+    activeClient.stop();
+    activeClient = client1;
   }
   
   int done = 0;
-  while(activeClient1.available() > 0 && !done) {
-    done = processCommand(activeClient1.read());
+  while(activeClient.available() > 0 && !done) {
+    done = processCommand(activeClient.read());
   }
-  
-  while(activeClient2.available() > 0){
-    activeClient2.read();
+
+  if(activeClient && !activeClient.connected()){
+    activeClient.stop();
   }
-  
-  if(activeClient1 && !activeClient1.connected()){
-    activeClient1.stop();
-  }
-  if(activeClient2 && !activeClient2.connected()){
-    activeClient2.stop();
-  }  
   
   Alarm.delay(0);
 }
@@ -159,7 +144,7 @@ int processCommand(char tmp){
          break;
          
        case 'R':  //rs232
-         serial2_forward = (cmd_method[1] == '0') ? 0 : 1;
+         setSerial2Forward(cmd_spec);
          succeeded = 1;
          break;
          
@@ -167,9 +152,9 @@ int processCommand(char tmp){
          succeeded = 1;
          break;
     }
-    if(succeeded && activeClient1.connected()){
+    if(succeeded && activeClient.connected()){
       sprintf(response, "OK_%s_%s\r\n", cmd_method, response_body);
-      activeClient1.print(response);    
+      activeClient.print(response);    
     } 
     return 1;
 }
@@ -181,6 +166,24 @@ void prepareSpec(char *spec, int limit, char dv){
     spec[i] = dv;
   }
   spec[limit] = '\0';
+}
+
+void setSerial2Forward(char *spec){
+  int len = strlen(spec);
+  Serial.println(spec);
+  if(len >= 20){
+    spec[3]  = '\0';
+    spec[7]  = '\0';
+    spec[11] = '\0';
+    spec[15] = '\0';
+    serial2ForwardAddress = IPAddress(atoi(spec), atoi(spec + 4), atoi(spec + 8), atoi(spec + 12));
+    serial2ForwardPort = atoi(spec + 16); 
+    Serial.println(serial2ForwardAddress);
+    Serial.println(serial2ForwardPort);
+    
+  }else{
+    serial2ForwardPort = -1;
+  }
 }
 
 void setCurrentTime(char *spec){
@@ -221,8 +224,9 @@ void readSensors(char *body){
     (int)current_tp, ((int)(current_tp *10)) % 10);
 }
 
-char code[12];
-int ci = 0;
+#define SKIP_RF 3
+char code[16] = "RF_";  //12 + 4 (RF_XXXXXXXXXXXX\0)
+int ci = 0;  
 void serialEvent1(){
   
   byte bytesRead = 0;
@@ -239,27 +243,29 @@ void serialEvent1(){
     }else if(val == 0x03){
       process_code();
       break;
-    }else if(ci < 12) {
-      code[ci++] = val;
+    }else if(ci < 12) {  
+      code[SKIP_RF + ci++] = val;
     }
   }
 }
 
 void process_code() {
-  byte checksum = hexstr2b(code + 10);
-  byte test = hexstr2b(code);
+  char *code_only = code + SKIP_RF;
+  byte checksum = hexstr2b(code_only + 10);
+  byte test = hexstr2b(code_only);
   int i;
   for(i = 1; i < 5; i++){
-    test ^= hexstr2b(code + (i * 2));
+    test ^= hexstr2b(code_only + (i * 2));
   }
   if(test == checksum){ //valid tag code
-    code[10] = '\0';
-    Serial.println(code);
+    code_only[10] = '\r';
+    code_only[11] = '\n';
+    code_only[12] = '\0';
+    
     rfid_stamp = millis();
-    if(activeClient1.connected()){
-      activeClient1.print("RF_");
-      activeClient1.print(code);
-      activeClient1.print("\r\n");
+    if(activeClient.connected()){
+      activeClient.print(code);
+      activeClient.flush();
     }
   }
 }
@@ -278,26 +284,19 @@ void serialEvent2() {
 
    if(rsi > 0 && ok){
      serial2_stamp = millis();
-     if(activeClient2.connected() && serial2_forward){
-       activeClient2.write(rs_buf, rsi);
-       activeClient2.flush();
+     if(activeClient.connected() && serial2ForwardPort > 0){
+       if(udp.beginPacket(serial2ForwardAddress, serial2ForwardPort)){
+          udp.write(rs_buf, rsi);
+          udp.endPacket();
+          udp.flush();
+          udp.stop();
+       }
      }
      rsi = 0;
    }else if(rsi >= 128){
      rsi = 0;  //discard message longer than 128 bytes
    }  
 }
-
-/*void serialEvent2(){
-  int max_bytes = 128;
-  while(Serial2.available() > 0 && max_bytes-- > 0){
-    byte v = Serial2.read();
-    if(activeClient2.connected() && serial2_forward){
-      activeClient2.write(v);
-    }
-  }
-  serial2_stamp = millis();
-}*/
 
 void updateSensors(){
   float rh = dht.readHumidity(); 
@@ -317,13 +316,19 @@ void displayBoxInfo(){
       current_rh > 99 ? 99 : (int)(current_rh),
       current_tp > 99 ? 99 : (int)(current_tp),
       (now -serial2_stamp) < 2000 ? 'S' : ' ',
-      activeClient2.connected() ? 'N' : ' ',  
+      activeClient.connected() ? 'N' : ' ',  
       (now - rfid_stamp) < 2000 ? 'R' : ' ',  
       hour(), heartToggle ? ':' : ' ', minute());
     displayTextLcd(4, str);
     free(str);
     
     heartToggle = !heartToggle;
+    
+    //for testing
+    if(activeClient.connected()){
+      activeClient.print("RF_1234567890\r\n");
+      activeClient.flush();
+    }
 }
 
 //------utilities functions-------------
