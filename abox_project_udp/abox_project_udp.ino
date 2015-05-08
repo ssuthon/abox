@@ -19,8 +19,9 @@
  pin 10 is connected to LOAD 
  */
 LedControl lc = LedControl(12,11,10,1);
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte ip[] = { 192, 168, 1, 60 };    
+byte ip[] = { 192, 168, 1, 60 };
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, ip[2], ip[3] };
+  
 
 EthernetServer server(6000);
 EthernetClient activeClient;
@@ -319,6 +320,7 @@ void updateSensors(){
 }
 
 byte heartToggle = 0;
+byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
 void displayBoxInfo(){
     char *str = (char*)malloc(21);
     unsigned long now = millis();
@@ -336,7 +338,6 @@ void displayBoxInfo(){
     heartToggle = !heartToggle;
     
     //for testing
-    //byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
     //forwardUdpData(testTag, 12, 0);
 }
 
