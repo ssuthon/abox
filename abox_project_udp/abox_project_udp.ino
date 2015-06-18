@@ -1,5 +1,6 @@
 #include <SPI.h>
-#include <UIPEthernet.h>
+#include <Ethernet.h>
+#include <EthernetUdp.h>  
 #include <Wire.h>
 #include <LCD.h>
 #include <LiquidCrystal_I2C.h>
@@ -7,6 +8,10 @@
 #include <Time.h>
 #include <TimeAlarms.h>
 #include <DHT.h>
+
+////////////////////////////////////////////define BOX number///////////////////////////////
+#define BOX 14
+///////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
 #define BACKLIGHT_PIN 3 //set up blacklight pin
@@ -19,8 +24,9 @@
  pin 10 is connected to LOAD 
  */
 LedControl lc = LedControl(12,11,10,1);
-byte ip[] = { 192, 168, 1, 60 };
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, ip[2], ip[3] };
+//byte ip[] = { 192, 168, 1, BOX };
+IPAddress ip(192, 168, 1, BOX);
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, BOX };
   
 
 EthernetServer server(6000);
@@ -34,7 +40,7 @@ DHT dht(8, DHT21);
 LiquidCrystal_I2C lcd(I2C_ADDR,2,1,0,4,5,6,7);
 AlarmId displayBoxAlarmId;
 AlarmId updateSensorsAlarmId;
-void(* resetFunc) (void) = 0;//declare reset function at address 0
+//void(* resetFunc) (void) = 0;//declare reset function at address 0
 
 void setup() {
   Serial.begin(9600); 
@@ -46,6 +52,7 @@ void setup() {
   Wire.begin();
   // start listening for clients
   server.begin();
+  udp.begin(6000);
   
   //Serial.println("Server Ready");
   lcd.begin (20,4);
@@ -154,9 +161,9 @@ int processCommand(char tmp){
          succeeded = 1;
          break;
        
-       case 'H': //hardware
-         if(cmd_method[1] == 'R')
-           resetFunc();
+       //case 'H': //hardware
+         //if(cmd_method[1] == 'R')
+           //resetFunc();
     }
     if(succeeded && activeClient.connected()){
       int end = strlen(response);
@@ -242,8 +249,8 @@ void forwardUdpData(byte b[], int len, int channel){
     if(udp.beginPacket(serialForwardAddress, serialForwardPort + channel)){
       udp.write(b, len);
       udp.endPacket();
-      udp.flush();
-      udp.stop();
+      //udp.flush();
+      //udp.stop();
     }
   }
 }
@@ -253,7 +260,6 @@ int ci = 0;
 void serialEvent1(){
   byte bytesRead = 0;
   byte val = 0;
- 
   while(Serial1.available() > 0 && bytesRead < 16) { //make sure while not run indefinitely
     val = Serial1.read();
     bytesRead++;
@@ -283,7 +289,6 @@ void process_code() {
     code[11] = '\n';
     
     rfid_stamp = millis();
-
     forwardUdpData(code, 12, 0);
   }
 }
@@ -338,7 +343,7 @@ void displayBoxInfo(){
     heartToggle = !heartToggle;
     
     //for testing
-    //forwardUdpData(testTag, 12, 0);
+    forwardUdpData(testTag, 12, 0);
 }
 
 //------utilities functions-------------
