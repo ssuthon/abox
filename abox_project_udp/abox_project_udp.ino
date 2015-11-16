@@ -52,7 +52,7 @@ void setup() {
   Wire.begin();
   // start listening for clients
   server.begin();
-  //udp.begin(6000);
+  udp.begin(6000);
   
   //Serial.println("Server Ready");
   lcd.begin (20,4);
