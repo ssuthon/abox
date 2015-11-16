@@ -52,7 +52,7 @@ void setup() {
   Wire.begin();
   // start listening for clients
   server.begin();
-  udp.begin(6000);
+  //udp.begin(6000);
   
   //Serial.println("Server Ready");
   lcd.begin (20,4);
@@ -246,7 +246,7 @@ void readSensors(char *body){
 
 void forwardUdpData(byte b[], int len, int channel){
   if(activeClient.connected() && serialForwardPort > 0){
-    udp.beginPacket(serialForwardAddress, serialForwardPort + channel)){
+    udp.beginPacket(serialForwardAddress, serialForwardPort + channel);
     udp.write(b, len);
     udp.endPacket();
     }
