@@ -10,7 +10,7 @@
 #include <DHT.h>
 
 ////////////////////////////////////////////define BOX number///////////////////////////////
-#define BOX 14
+#define BOX 10
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
@@ -246,11 +246,9 @@ void readSensors(char *body){
 
 void forwardUdpData(byte b[], int len, int channel){
   if(activeClient.connected() && serialForwardPort > 0){
-    if(udp.beginPacket(serialForwardAddress, serialForwardPort + channel)){
-      udp.write(b, len);
-      udp.endPacket();
-      //udp.flush();
-      //udp.stop();
+    udp.beginPacket(serialForwardAddress, serialForwardPort + channel)){
+    udp.write(b, len);
+    udp.endPacket();
     }
   }
 }
@@ -343,7 +341,7 @@ void displayBoxInfo(){
     heartToggle = !heartToggle;
     
     //for testing
-    forwardUdpData(testTag, 12, 0);
+    //forwardUdpData(testTag, 12, 0);
 }
 
 //------utilities functions-------------
