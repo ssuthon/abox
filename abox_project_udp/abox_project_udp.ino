@@ -249,7 +249,6 @@ void forwardUdpData(byte b[], int len, int channel){
     udp.beginPacket(serialForwardAddress, serialForwardPort + channel);
     udp.write(b, len);
     udp.endPacket();
-    }
   }
 }
 
