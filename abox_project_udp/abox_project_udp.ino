@@ -1,4 +1,4 @@
-#include <SPI.h>
+ #include <SPI.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>  
 #include <Wire.h>
@@ -22,7 +22,7 @@
  pin 12 is connected to the DataIn 
  pin 11 is connected to the CLK 
  pin 10 is connected to LOAD 
- */
+ */  
 LedControl lc = LedControl(12,11,10,1);
 //byte ip[] = { 192, 168, 1, BOX };
 IPAddress ip(192, 168, 1, BOX);
@@ -323,6 +323,7 @@ void updateSensors(){
 
 byte heartToggle = 0;
 byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
+byte matrixLedOn = 0xFF;
 void displayBoxInfo(){
     char *str = (char*)malloc(21);
     unsigned long now = millis();
@@ -339,8 +340,13 @@ void displayBoxInfo(){
     
     heartToggle = !heartToggle;
     
-    //for testing
-    //forwardUdpData(testTag, 12, 0);
+    //blink matrix led
+    if(!activeClient.connected()){
+      for(int i = 0; i < 8; i++){
+        lc.setRow(0, i, matrixLedOn);
+      }    
+      matrixLedOn = ~matrixLedOn;
+    }
 }
 
 //------utilities functions-------------
