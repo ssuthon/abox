@@ -10,7 +10,8 @@
 #include <DHT.h>
 
 ////////////////////////////////////////////define BOX number///////////////////////////////
-#define BOX 10
+#define MAJOR_NO XX_MAJOR_NO_XX 
+#define MINOR_NO XX_MINOR_NO_XX 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
@@ -24,9 +25,8 @@
  pin 10 is connected to LOAD 
  */  
 LedControl lc = LedControl(12,11,10,1);
-//byte ip[] = { 192, 168, 1, BOX };
-IPAddress ip(192, 168, 1, BOX);
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, BOX };
+IPAddress ip(10, 0, MAJOR_NO, MINOR_NO);
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, MAJOR_NO, MINOR_NO };
   
 
 EthernetServer server(6000);
