@@ -10,9 +10,11 @@
 #include <DHT.h>
 
 ////////////////////////////////////////////define BOX number///////////////////////////////
-#define MAJOR_NO XX_MAJOR_NO_XX 
-#define MINOR_NO XX_MINOR_NO_XX 
-///////////////////////////////////////////////////////////////////////////////////////////
+//#define MAJOR_NO XX_MAJOR_NO_XX 
+//#define MINOR_NO XX_MINOR_NO_XX 
+#define MAJOR_NO 0
+#define MINOR_NO 10
+/////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
 #define BACKLIGHT_PIN 3 //set up blacklight pin
@@ -63,14 +65,18 @@ void setup() {
   lcd.setCursor(8,0);
   lcd.print("CMC");
   
-  //set LED 8x8
-  lc.shutdown(0,false);
-  lc.setIntensity(0,2);
-  lc.clearDisplay(0);
+  initLed();
   
   dht.begin();
  
   initAlarm(); 
+}
+
+void initLed(){
+  //set LED 8x8
+  lc.shutdown(0,false);
+  lc.setIntensity(0,2);
+  lc.clearDisplay(0);
 }
 
 void initAlarm(){
@@ -230,9 +236,13 @@ void displayMatrixLed(char *spec){
   byte v;
   int i;
 
+  if(*spec == '\0'){
+    initLed();
+    return;
+  }
   //char limit 16, default '0'
   prepareSpec(spec, 16, '0');
- 
+
   for(i = 0; i < 8; i++){
     v = hexstr2b(spec[i*2], spec[i*2 + 1]);
     lc.setRow(0, i, v);
