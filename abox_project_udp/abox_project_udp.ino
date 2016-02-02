@@ -4,7 +4,7 @@
 #include <Wire.h>
 #include <LCD.h>
 #include <LiquidCrystal_I2C.h>
-#include "LedControlMS.h"
+#include "LedControl.h"
 #include <Time.h>
 #include <TimeAlarms.h>
 #include <DHT.h>
@@ -21,6 +21,8 @@
 
 #define CMD_PREFIX_LEN 3
 #define RESPONSE_LEN 3
+#define REGISTRAR_PORT 9183
+#define BOX_SIGNAL_PORT 6000
 /*
  pin 12 is connected to the DataIn 
  pin 11 is connected to the CLK 
@@ -28,10 +30,11 @@
  */  
 LedControl lc = LedControl(12,11,10,1);
 IPAddress ip(10, 0, MAJOR_NO, MINOR_NO);
+IPAddress registrarIp(10, 0, 0, 1);
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, MAJOR_NO, MINOR_NO };
   
 
-EthernetServer server(6000);
+EthernetServer server(BOX_SIGNAL_PORT);
 EthernetClient activeClient;
 EthernetUDP udp;
 
@@ -356,7 +359,16 @@ void displayBoxInfo(){
         lc.setRow(0, i, matrixLedOn);
       }    
       matrixLedOn = ~matrixLedOn;
+      if(heartToggle){
+        reportToRegistrar();
+      }
     }
+}
+
+void reportToRegistrar(){
+  udp.beginPacket(registrarIp, REGISTRAR_PORT);
+  udp.write("Hi");
+  udp.endPacket();
 }
 
 //------utilities functions-------------
