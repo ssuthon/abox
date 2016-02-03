@@ -23,6 +23,7 @@
 #define RESPONSE_LEN 3
 #define REGISTRAR_PORT 9183
 #define BOX_SIGNAL_PORT 6000
+#define IDLE_MS 12000
 /*
  pin 12 is connected to the DataIn 
  pin 11 is connected to the CLK 
@@ -45,7 +46,7 @@ DHT dht(8, DHT21);
 LiquidCrystal_I2C lcd(I2C_ADDR,2,1,0,4,5,6,7);
 AlarmId displayBoxAlarmId;
 AlarmId updateSensorsAlarmId;
-//void(* resetFunc) (void) = 0;//declare reset function at address 0
+void(* resetFunc) (void) = 0;//declare reset function at address 0
 
 void setup() {
   Serial.begin(9600); 
@@ -115,6 +116,7 @@ void loop() {
   Alarm.delay(0);
 }
 
+unsigned long lastCmdStamp = 0;
 int processCommand(char tmp){
   int succeeded = 0;
   
@@ -170,9 +172,9 @@ int processCommand(char tmp){
          succeeded = 1;
          break;
        
-       //case 'H': //hardware
-         //if(cmd_method[1] == 'R')
-           //resetFunc();
+       case 'H': //hardware
+         if(cmd_method[1] == 'R')
+           resetFunc();
     }
     if(succeeded && activeClient.connected()){
       int end = strlen(response);
@@ -361,6 +363,10 @@ void displayBoxInfo(){
       matrixLedOn = ~matrixLedOn;
       if(heartToggle){
         reportToRegistrar();
+      }
+    }else{
+      if(lastCmdStamp > 0 && (now - lastCmdStamp) > IDLE_MS){
+        resetFunc();
       }
     }
 }
