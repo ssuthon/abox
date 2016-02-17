@@ -67,7 +67,7 @@ void setup() {
   lcd.setBacklight(HIGH);
   lcd.home ();
   lcd.setCursor(8,0);
-  lcd.print("CMC");
+  lcd.print("KST");
   
   initLed();
   
@@ -114,7 +114,17 @@ void loop() {
   }
   
   Alarm.delay(0);
-  
+  query_weight();  
+}
+
+
+unsigned long last_query_weight = 0;
+void query_weight(){  //this is for mettler toledo SCIS mode
+  unsigned long now = millis();
+  if(now - last_query_weight > 250){
+    Serial2.print("SI\r\n"); 
+    last_query_weight = now;
+  }
 }
 
 unsigned long lastCmdStamp = 0;
@@ -344,9 +354,9 @@ void displayBoxInfo(){
     char *str = (char*)malloc(21);
     unsigned long now = millis();
     
-    sprintf(str, "%d%03d %02d%02d %c%c%c  %02d%c%02d", ip[2], ip[3], 
-      current_rh > 99 ? 99 : (int)(current_rh),
-      current_tp > 99 ? 99 : (int)(current_tp),
+    sprintf(str, "KST-%d%03d %c%c%c  %02d%c%02d", ip[2], ip[3], 
+      //current_rh > 99 ? 99 : (int)(current_rh),
+      //current_tp > 99 ? 99 : (int)(current_tp),
       (now -serial2_stamp) < 2000 ? 'S' : ' ',
       activeClient.connected() ? 'N' : ' ',  
       (now - rfid_stamp) < 2000 ? 'R' : ' ',  
