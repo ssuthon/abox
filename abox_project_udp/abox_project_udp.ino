@@ -33,7 +33,8 @@ LedControl lc = LedControl(12,11,10,1);
 IPAddress ip(10, 0, MAJOR_NO, MINOR_NO);
 IPAddress registrarIp(10, 0, 0, 1);
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, MAJOR_NO, MINOR_NO };
-  
+byte dnsAndGateway[] = {10, 0, 0, 1};
+byte netmask[] = {255, 255, 0, 0};   
 
 EthernetServer server(BOX_SIGNAL_PORT);
 EthernetClient activeClient;
@@ -53,7 +54,7 @@ void setup() {
   Serial1.begin(9600);
   Serial2.begin(9600);
    // initialize the ethernet device
-  Ethernet.begin(mac, ip);
+  Ethernet.begin(mac, ip, dnsAndGateway, dnsAndGateway, netmask);
   //sensor part
   Wire.begin();
   // start listening for clients
