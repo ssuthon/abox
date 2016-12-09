@@ -8,6 +8,8 @@
 #include <Time.h>
 #include <TimeAlarms.h>
 #include <DHT.h>
+#include <hidboot.h>
+#include <usbhub.h>
 
 ////////////////////////////////////////////define BOX number///////////////////////////////
 //#define MAJOR_NO XX_MAJOR_NO_XX 
@@ -49,6 +51,93 @@ AlarmId displayBoxAlarmId;
 AlarmId updateSensorsAlarmId;
 void(* resetFunc) (void) = 0;//declare reset function at address 0
 
+class KbdRptParser : public KeyboardReportParser
+{
+  protected:    
+    void OnKeyDown  (uint8_t mod, uint8_t key);
+};
+
+char usbText[21];
+char usbTextLen = 0;
+void submitUsbText(){
+  Serial.print("Submit : ");
+  Serial.println(usbText);
+  usbText[0] = '\0';
+  usbTextLen = 0;
+}
+void processUsbCharCode(char code){
+  if(code == '+' || code == '-' || code == '*' || code == '/'){
+    usbText[0] = code;
+    usbText[1] = '\0';
+    usbTextLen = 1;
+  }else if(usbTextLen > 0){
+    if(code >= '0' && code <= '9' && usbTextLen < 16){  
+      usbText[usbTextLen++] = code;
+      usbText[usbTextLen] = '\0';
+    }else if(code == 'o'){
+      submitUsbText(); 
+    }else if(code == '.'){
+      usbTextLen --;
+      usbText[usbTextLen] = '\0';
+    }
+  }
+
+  if(usbTextLen > 0){
+    displayTextLcd(4, usbText);
+  }
+}
+
+void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
+{
+  char code = 0;
+  switch(key){
+    case 89:
+    case 90:
+    case 91:
+    case 92:
+    case 93:
+    case 94:
+    case 95:
+    case 96:
+    case 97:
+      code = '1' + (key - 89);
+      break;
+    case 98: 
+      code = '0';
+      break;
+    case 84:
+      code = '/';
+      break;
+    case 85:
+      code = '*';
+      break;
+    case 86:
+      code = '-';
+      break;
+    case 87:
+      code = '+';
+      break;
+    case 88:
+      code = 'o';
+      break;
+    case 83:
+      code = 'n';
+      break;
+    case 99:
+      code = '.';
+      break;
+    
+  }
+  if(code != 0){
+    processUsbCharCode(code);
+  }
+};
+
+
+USB Usb;
+HIDBoot<HID_PROTOCOL_KEYBOARD>    HidKeyboard(&Usb);
+KbdRptParser Prs;
+
 void setup() {
   Serial.begin(9600); 
   Serial1.begin(9600);
@@ -73,6 +162,12 @@ void setup() {
   initLed();
   
   dht.begin();
+
+  if (Usb.Init() == -1)
+    Serial.println("OSC did not start.");
+
+  delay( 200 );
+  HidKeyboard.SetReportParser(0, (HIDReportParser*)&Prs);
  
   initAlarm(); 
 }
@@ -114,8 +209,8 @@ void loop() {
     activeClient.stop();
   }
   
+  Usb.Task();
   Alarm.delay(0);
-  
 }
 
 unsigned long lastCmdStamp = 0;
@@ -342,18 +437,21 @@ byte heartToggle = 0;
 byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
 byte matrixLedOn = 0xFF;
 void displayBoxInfo(){
-    char *str = (char*)malloc(21);
     unsigned long now = millis();
     
-    sprintf(str, "%d%03d %02d%02d %c%c%c  %02d%c%02d", ip[2], ip[3], 
-      current_rh > 99 ? 99 : (int)(current_rh),
-      current_tp > 99 ? 99 : (int)(current_tp),
-      (now -serial2_stamp) < 2000 ? 'S' : ' ',
-      activeClient.connected() ? 'N' : ' ',  
-      (now - rfid_stamp) < 2000 ? 'R' : ' ',  
-      hour(), heartToggle ? ':' : ' ', minute());
-    displayTextLcd(4, str);
-    free(str);
+    if(usbTextLen <= 0){
+      char *str = (char*)malloc(21);
+        
+      sprintf(str, "%d%03d %02d%02d %c%c%c  %02d%c%02d", ip[2], ip[3], 
+        current_rh > 99 ? 99 : (int)(current_rh),
+        current_tp > 99 ? 99 : (int)(current_tp),
+        (now -serial2_stamp) < 2000 ? 'S' : ' ',
+        activeClient.connected() ? 'N' : ' ',  
+        (now - rfid_stamp) < 2000 ? 'R' : ' ',  
+        hour(), heartToggle ? ':' : ' ', minute());
+      displayTextLcd(4, str);
+      free(str);
+    }
     
     heartToggle = !heartToggle;
     
@@ -410,3 +508,5 @@ char *trimwhitespace(char *str) {
 
   return str;
 }
+
+
