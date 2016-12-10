@@ -60,6 +60,11 @@ class KbdRptParser : public KeyboardReportParser
 char usbText[21];
 char usbTextLen = 0;
 char usbTextResp[32];
+
+void resetUsbText(){
+  usbText[0] = '\0';
+  usbTextLen = 0;
+}
 void submitUsbText(){
   Serial.print("Submit : ");
   Serial.println(usbText);
@@ -67,8 +72,7 @@ void submitUsbText(){
     sprintf(usbTextResp, "TXT%s\r\n", usbText);
     activeClient.print(usbTextResp);
   }
-  usbText[0] = '\0';
-  usbTextLen = 0;
+  resetUsbText();
 }
 void processUsbCharCode(char code){
   if(code == '+' || code == '-' || code == '*' || code == '/'){
@@ -84,6 +88,8 @@ void processUsbCharCode(char code){
     }else if(code == '.'){
       usbTextLen --;
       usbText[usbTextLen] = '\0';
+    }else if(code == 'n'){
+      resetUsbText();
     }
   }
 
