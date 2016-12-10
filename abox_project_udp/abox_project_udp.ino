@@ -59,9 +59,14 @@ class KbdRptParser : public KeyboardReportParser
 
 char usbText[21];
 char usbTextLen = 0;
+char usbTextResp[32];
 void submitUsbText(){
   Serial.print("Submit : ");
   Serial.println(usbText);
+  if(activeClient.connected()){
+    sprintf(usbTextResp, "TXT%s\r\n", usbText);
+    activeClient.print(usbTextResp);
+  }
   usbText[0] = '\0';
   usbTextLen = 0;
 }
