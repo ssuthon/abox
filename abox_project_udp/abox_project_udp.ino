@@ -11,6 +11,7 @@
 #include <hidboot.h>
 #include <usbhub.h>
 
+#define SW_VERSION "1.0.1"
 ////////////////////////////////////////////define BOX number///////////////////////////////
 //#define MAJOR_NO XX_MAJOR_NO_XX 
 //#define MINOR_NO XX_MINOR_NO_XX 
@@ -474,6 +475,7 @@ void displayBoxInfo(){
       matrixLedOn = ~matrixLedOn;
       if(heartToggle){
         reportToRegistrar();
+        displayTextLcd(3, SW_VERSION);
       }
     }else{
       if(lastCmdStamp > 0 && (now - lastCmdStamp) > IDLE_MS){
