@@ -103,41 +103,53 @@ void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
 {
   char code = 0;
   switch(key){
+    case 30:
     case 89:
+      code = '1'; break;
+    case 31:
     case 90:
+      code = '2'; break;
+    case 32:
     case 91:
+      code = '3'; break;
+    case 33:
     case 92:
+      code = '4'; break;
+    case 34:
     case 93:
+      code = '5'; break;
+    case 35:
     case 94:
+      code = '6'; break;
+    case 36:
     case 95:
+      code = '7'; break;
+    case 37:
     case 96:
+      code = '8'; break;
+    case 38:
     case 97:
-      code = '1' + (key - 89);
-      break;
+      code = '9'; break;
+    case 39:
     case 98: 
-      code = '0';
-      break;
+      code = '0'; break;
     case 84:
-      code = '/';
-      break;
+      code = '/'; break;
     case 85:
-      code = '*';
-      break;
+      code = '*'; break;
     case 86:
-      code = '-';
-      break;
+      code = '-'; break;
     case 87:
-      code = '+';
-      break;
+      code = '+'; break;
+    case 40:
     case 88:
-      code = 'o';
-      break;
+      code = 'o'; break;
+    case 42:
     case 83:
-      code = 'n';
-      break;
+      code = 'n'; break;
+    case 55:
     case 99:
-      code = '.';
-      break;
+      code = '.'; break;
     
   }
   if(code != 0){
