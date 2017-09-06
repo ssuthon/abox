@@ -1,4 +1,4 @@
- #include <SPI.h>
+#include <SPI.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>  
 #include <Wire.h>
@@ -10,6 +10,7 @@
 #include <DHT.h>
 #include <hidboot.h>
 #include <usbhub.h>
+#include <ICMPPing.h> //https://playground.arduino.cc/Code/ICMPPing
 
 #define SW_VERSION "1.0.1"
 ////////////////////////////////////////////define BOX number///////////////////////////////
@@ -42,6 +43,8 @@ byte netmask[] = {255, 255, 0, 0};
 EthernetServer server(BOX_SIGNAL_PORT);
 EthernetClient activeClient;
 EthernetUDP udp;
+SOCKET pingSocket = 0;
+ICMPPing ping(pingSocket, (uint16_t)random(0, 255));
 
 IPAddress serialForwardAddress;
 int serialForwardPort = -1;
@@ -460,22 +463,9 @@ void updateSensors(){
 byte heartToggle = 0;
 byte testTag[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\r', '\n'};
 byte matrixLedOn = 0xFF;
+byte lastPingResult = 0;
 void displayBoxInfo(){
     unsigned long now = millis();
-    
-    if(usbTextLen <= 0){
-      char *str = (char*)malloc(21);
-        
-      sprintf(str, "%d%03d %02d%02d %c%c%c  %02d%c%02d", ip[2], ip[3], 
-        current_rh > 99 ? 99 : (int)(current_rh),
-        current_tp > 99 ? 99 : (int)(current_tp),
-        (now -serial2_stamp) < 2000 ? 'S' : ' ',
-        activeClient.connected() ? 'N' : ' ',  
-        (now - rfid_stamp) < 2000 ? 'R' : ' ',  
-        hour(), heartToggle ? ':' : ' ', minute());
-      displayTextLcd(4, str);
-      free(str);
-    }
     
     heartToggle = !heartToggle;
     
@@ -488,11 +478,27 @@ void displayBoxInfo(){
       if(heartToggle){
         reportToRegistrar();
         displayTextLcd(3, SW_VERSION);
+        ICMPEchoReply echoReply = ping(registrarIp, 4);
+        lastPingResult = (echoReply.status == SUCCESS);
       }
     }else{
       if(lastCmdStamp > 0 && (now - lastCmdStamp) > IDLE_MS){
         resetFunc();
       }
+    }
+
+    if(usbTextLen <= 0){
+      char *str = (char*)malloc(21);
+        
+      sprintf(str, "%d%03d %02d%02d %c%c%c  %02d%c%02d", ip[2], ip[3], 
+        current_rh > 99 ? 99 : (int)(current_rh),
+        current_tp > 99 ? 99 : (int)(current_tp),
+        (now -serial2_stamp) < 2000 ? 'S' : ' ',
+        activeClient.connected() ? 'N' : (lastPingResult ? 'P' : ' '),  
+        (now - rfid_stamp) < 2000 ? 'R' : ' ',  
+        hour(), heartToggle ? ':' : ' ', minute());
+      displayTextLcd(4, str);
+      free(str);
     }
 }
 
