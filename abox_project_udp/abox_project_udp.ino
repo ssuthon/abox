@@ -488,7 +488,7 @@ void displayBoxInfo(){
       }    
       matrixLedOn = ~matrixLedOn;
       if(heartToggle){
-        reportToRegistrar();
+        //reportToRegistrar();
         displayTextLcd(3, SW_VERSION);
       }
     }else{
