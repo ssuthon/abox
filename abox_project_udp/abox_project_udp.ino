@@ -15,8 +15,8 @@
 ////////////////////////////////////////////define BOX number///////////////////////////////
 //#define MAJOR_NO XX_MAJOR_NO_XX 
 //#define MINOR_NO XX_MINOR_NO_XX 
-#define MAJOR_NO 0
-#define MINOR_NO 10
+#define MAJOR_NO 7
+#define MINOR_NO 129
 /////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
@@ -67,8 +67,8 @@ void resetUsbText(){
   usbTextLen = 0;
 }
 void submitUsbText(){
-  Serial.print("Submit : ");
-  Serial.println(usbText);
+  //Serial.print("Submit : ");
+  //Serial.println(usbText);
   if(activeClient.connected()){
     sprintf(usbTextResp, "TXT%s\r\n", usbText);
     activeClient.print(usbTextResp);
@@ -76,7 +76,7 @@ void submitUsbText(){
   resetUsbText();
 }
 void processUsbCharCode(char code){
-  if(code == '+' || code == '-' || code == '*' || code == '/'){
+  if(code == '+' || code == '-' || code == '*' || code == '/' || code == '.'){
     usbText[0] = code;
     usbText[1] = '\0';
     usbTextLen = 1;
@@ -86,14 +86,14 @@ void processUsbCharCode(char code){
       usbText[usbTextLen] = '\0';
     }else if(code == 'o'){
       submitUsbText(); 
-    }else if(code == '.'){
+    }/*else if(code == '.'){
       usbTextLen --;
       usbText[usbTextLen] = '\0';
-    }else if(code == 'n'){
+    }*/else if(code == 'n'){
       resetUsbText();
     }
   }
-
+  //Serial.println(usbText);
   if(usbTextLen > 0){
     displayTextLcd(4, usbText);
   }
@@ -101,6 +101,7 @@ void processUsbCharCode(char code){
 
 void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
 {
+  //Serial.println(key);
   char code = 0;
   switch(key){
     case 30:
@@ -194,6 +195,7 @@ void setup() {
   HidKeyboard.SetReportParser(0, (HIDReportParser*)&Prs);
  
   initAlarm(); 
+  //Serial.println("Setup is done");
 }
 
 void initLed(){
