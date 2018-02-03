@@ -11,7 +11,7 @@
 #include <hidboot.h>
 #include <usbhub.h>
 
-#define SW_VERSION "1.0.1"
+#define SW_VERSION "1.0.3"
 ////////////////////////////////////////////define BOX number///////////////////////////////
 //#define MAJOR_NO XX_MAJOR_NO_XX 
 //#define MINOR_NO XX_MINOR_NO_XX 
@@ -160,7 +160,7 @@ void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
 
 
 USB Usb;
-HIDBoot<HID_PROTOCOL_KEYBOARD>    HidKeyboard(&Usb);
+HIDBoot<USB_HID_PROTOCOL_KEYBOARD>    HidKeyboard(&Usb);
 KbdRptParser Prs;
 
 void setup() {
