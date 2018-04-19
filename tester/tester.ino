@@ -1,5 +1,6 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>  
+#include <SPI.h>
 
 #define BOX_SIGNAL_PORT 6000
 #define REGISTRAR_PORT 9183

@@ -13,10 +13,11 @@
 //#define MAJOR_NO XX_MAJOR_NO_XX 
 //#define MINOR_NO XX_MINOR_NO_XX 
 #define MAJOR_NO 0
-#define MINOR_NO 10
+#define MINOR_NO 51
 /////////////////////////////////////////////////////////////////////////////////////////
 
-#define I2C_ADDR 0x27 //i2c scanner address
+#define I2C_ADDR 0x27  //i2c scanner address
+//#define I2C_ADDR 0x3F // for new LCD 
 #define BACKLIGHT_PIN 3 //set up blacklight pin
 
 #define CMD_PREFIX_LEN 3
@@ -50,8 +51,9 @@ void(* resetFunc) (void) = 0;//declare reset function at address 0
 
 void setup() {
   Serial.begin(9600); 
-  Serial1.begin(9600);
-  Serial2.begin(9600);
+  Serial1.begin(9600); // rx1 for rfid
+  Serial2.begin(9600); // rx2 tx2 for rs232
+  Serial3.begin(9600); // spare part for rs232
    // initialize the ethernet device
   Ethernet.begin(mac, ip);
   //sensor part
@@ -122,7 +124,8 @@ unsigned long last_query_weight = 0;
 void query_weight(){  //this is for mettler toledo SCIS mode
   unsigned long now = millis();
   if(now - last_query_weight > 250){
-    Serial2.print("SI\r\n"); 
+    Serial2.print("SI\r\n");
+    Serial3.print("SI\r\n");  
     last_query_weight = now;
   }
 }
@@ -139,7 +142,7 @@ int processCommand(char tmp){
       cmd_index = 0;      
     }
     
-    char *cmd_method = trimwhitespace(cmd_buf);
+    char *cmd_method = trimwhitespace(cmd_buf) ;
     char *cmd_spec;
     if(cmd_method[2] != '_'){
       //Serial.println("invalid command");
@@ -318,10 +321,33 @@ void process_code() {
 
 byte rs_buf[128];
 int rsi = 0;
+
 void serialEvent2() { 
   int ok = 0;
    while(Serial2.available() > 0 && rsi < 128 && !ok){
      byte v = Serial2.read();
+     rs_buf[rsi++] = v;
+     if(v == 0x0D){
+       ok = 1;
+       Serial.println(v);
+     }
+   }
+
+   if(rsi > 0 && ok){
+     serial2_stamp = millis();
+     
+     forwardUdpData(rs_buf, rsi, 1);
+     rsi = 0;
+   }else if(rsi >= 128){
+     rsi = 0;  //discard message longer than 128 bytes
+   }  
+}
+
+// spare part for rs232
+void serialEvent3() { 
+  int ok = 0;
+   while(Serial3.available() > 0 && rsi < 128 && !ok){
+     byte v = Serial3.read();
      rs_buf[rsi++] = v;
      if(v == 0x0D){
        ok = 1;
@@ -373,7 +399,7 @@ void displayBoxInfo(){
       }    
       matrixLedOn = ~matrixLedOn;
       if(heartToggle){
-        reportToRegistrar();
+        reportToRegistrar(); // comment this line if clock Ethernet is bug
       }
     }else{
       if(lastCmdStamp > 0 && (now - lastCmdStamp) > IDLE_MS){
