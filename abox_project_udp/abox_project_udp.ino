@@ -11,11 +11,12 @@
 #include <hidboot.h>
 #include <usbhub.h>
 
+#define SW_VERSION "1.0.3"
 ////////////////////////////////////////////define BOX number///////////////////////////////
 //#define MAJOR_NO XX_MAJOR_NO_XX 
 //#define MINOR_NO XX_MINOR_NO_XX 
-#define MAJOR_NO 0
-#define MINOR_NO 10
+#define MAJOR_NO 7
+#define MINOR_NO 129
 /////////////////////////////////////////////////////////////////////////////////////////
 
 #define I2C_ADDR 0x27 //i2c scanner address
@@ -66,8 +67,8 @@ void resetUsbText(){
   usbTextLen = 0;
 }
 void submitUsbText(){
-  Serial.print("Submit : ");
-  Serial.println(usbText);
+  //Serial.print("Submit : ");
+  //Serial.println(usbText);
   if(activeClient.connected()){
     sprintf(usbTextResp, "TXT%s\r\n", usbText);
     activeClient.print(usbTextResp);
@@ -75,7 +76,7 @@ void submitUsbText(){
   resetUsbText();
 }
 void processUsbCharCode(char code){
-  if(code == '+' || code == '-' || code == '*' || code == '/'){
+  if(code == '+' || code == '-' || code == '*' || code == '/' || code == '.'){
     usbText[0] = code;
     usbText[1] = '\0';
     usbTextLen = 1;
@@ -85,14 +86,14 @@ void processUsbCharCode(char code){
       usbText[usbTextLen] = '\0';
     }else if(code == 'o'){
       submitUsbText(); 
-    }else if(code == '.'){
+    }/*else if(code == '.'){
       usbTextLen --;
       usbText[usbTextLen] = '\0';
-    }else if(code == 'n'){
+    }*/else if(code == 'n'){
       resetUsbText();
     }
   }
-
+  //Serial.println(usbText);
   if(usbTextLen > 0){
     displayTextLcd(4, usbText);
   }
@@ -100,43 +101,56 @@ void processUsbCharCode(char code){
 
 void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
 {
+  //Serial.println(key);
   char code = 0;
   switch(key){
+    case 30:
     case 89:
+      code = '1'; break;
+    case 31:
     case 90:
+      code = '2'; break;
+    case 32:
     case 91:
+      code = '3'; break;
+    case 33:
     case 92:
+      code = '4'; break;
+    case 34:
     case 93:
+      code = '5'; break;
+    case 35:
     case 94:
+      code = '6'; break;
+    case 36:
     case 95:
+      code = '7'; break;
+    case 37:
     case 96:
+      code = '8'; break;
+    case 38:
     case 97:
-      code = '1' + (key - 89);
-      break;
+      code = '9'; break;
+    case 39:
     case 98: 
-      code = '0';
-      break;
+      code = '0'; break;
     case 84:
-      code = '/';
-      break;
+      code = '/'; break;
     case 85:
-      code = '*';
-      break;
+      code = '*'; break;
     case 86:
-      code = '-';
-      break;
+      code = '-'; break;
     case 87:
-      code = '+';
-      break;
+      code = '+'; break;
+    case 40:
     case 88:
-      code = 'o';
-      break;
+      code = 'o'; break;
+    case 42:
     case 83:
-      code = 'n';
-      break;
+      code = 'n'; break;
+    case 55:
     case 99:
-      code = '.';
-      break;
+      code = '.'; break;
     
   }
   if(code != 0){
@@ -146,7 +160,7 @@ void KbdRptParser::OnKeyDown(uint8_t mod, uint8_t key)
 
 
 USB Usb;
-HIDBoot<HID_PROTOCOL_KEYBOARD>    HidKeyboard(&Usb);
+HIDBoot<USB_HID_PROTOCOL_KEYBOARD>    HidKeyboard(&Usb);
 KbdRptParser Prs;
 
 void setup() {
@@ -181,6 +195,7 @@ void setup() {
   HidKeyboard.SetReportParser(0, (HIDReportParser*)&Prs);
  
   initAlarm(); 
+  //Serial.println("Setup is done");
 }
 
 void initLed(){
@@ -473,7 +488,8 @@ void displayBoxInfo(){
       }    
       matrixLedOn = ~matrixLedOn;
       if(heartToggle){
-        reportToRegistrar();
+        //reportToRegistrar();
+        displayTextLcd(3, SW_VERSION);
       }
     }else{
       if(lastCmdStamp > 0 && (now - lastCmdStamp) > IDLE_MS){
